@@ -110,12 +110,10 @@ occasional cold starts (which can time out claude.ai's handshake).
 
 ## Rotating the Canvas token
 
-```bash
-fly secrets set CANVAS_API_TOKEN='19324~newtoken'
-```
+Render dashboard → **canvas-remote-mcp** → **Environment** → edit `CANVAS_API_TOKEN`
+→ Save. Render redeploys automatically.
 
-Triggers a rolling restart. Revoke the old one in Canvas → Account → Settings →
-Approved Integrations.
+Then revoke the old one in Canvas → Account → Settings → Approved Integrations.
 
 ---
 
