@@ -116,3 +116,22 @@ fly secrets set CANVAS_API_TOKEN='19324~newtoken'
 
 Triggers a rolling restart. Revoke the old one in Canvas → Account → Settings →
 Approved Integrations.
+
+---
+
+## Deployed (2026-08-26)
+
+**Live:** https://canvas-remote-mcp.onrender.com
+Render free plan, Docker runtime, Oregon. Blueprint: `render.yaml`, auto-deploys on push to `main`.
+
+Verified from the public internet:
+- `/.well-known/oauth-authorization-server` serves real HTTPS endpoints
+- Unauthenticated `tools/list` -> **401** with correct `WWW-Authenticate` header
+- DCR `/register` + `/authorize` -> 302 into consent -> GitHub
+
+**Known limitation:** the free plan spins down after ~15 min idle; the next request
+takes ~50s to wake. That can time out claude.ai's connector handshake — retry usually
+works. Upgrade to Render Starter (no sleep) if it proves annoying.
+
+Deployed to Render rather than Fly because Fly now requires payment info before
+creating any app. `fly.toml` was removed to avoid implying otherwise.
