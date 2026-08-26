@@ -1,0 +1,35 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Free plan sleeps after ~15 min idle; first request after sleep takes
+# 30-50s to cold start. That can time out claude.ai's connector handshake.
+# If it proves flaky, upgrade this service to Starter (no sleep) or move to Fly.
+#
+# All six env vars are marked `sync: false`, so Render prompts for them in the
+# dashboard instead of storing them in this repo. Values are in local .env.
+
+services:
+  - type: web
+    name: canvas-remote-mcp
+    runtime: docker
+    plan: free
+    region: oregon          # closest free region
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+
+    # No healthCheckPath: every HTTP route on this server requires OAuth and
+    # returns 401 unauthenticated, which Render would read as unhealthy.
+    # Render falls back to a TCP port-bind check, which is what we want.
+
+    envVars:
+      - key: CANVAS_API_TOKEN
+        sync: false
+      - key: CANVAS_BASE_URL
+        sync: false
+      - key: BASE_URL          # must be the live https://<name>.onrender.com (no trailing slash)
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: ALLOWED_GITHUB_USERS
+        sync: false
