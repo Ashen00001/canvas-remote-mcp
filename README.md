@@ -23,7 +23,7 @@ So: no-auth would mean anyone with the URL controls your Canvas account. Hence O
 
 ---
 
-## Deploy (Fly.io)
+## Deploy (Render)
 
 ### 1. GitHub OAuth App — DONE
 
@@ -31,54 +31,41 @@ Created 2026-08-26: **"Canvas Remote MCP"** (app id `3818524`), owner `Ashen0000
 
 - Client ID: `Ov23linmhs7OYZsyGdG1`
 - Client secret: in `.env` (gitignored). GitHub shows it once — it's captured there.
-- Callback URL: `https://canvas-remote-mcp.fly.dev/auth/callback`
+- Callback URL: `https://canvas-remote-mcp.onrender.com/auth/callback`
 
 Manage it at <https://github.com/settings/applications/3818524>.
 
-> **If your Fly app name ends up different from `canvas-remote-mcp`**, edit the
-> callback URL on that page to match — it must be exact, and update `BASE_URL` too.
+> The callback URL must **exactly** match `<BASE_URL>/auth/callback`. If the service
+> is ever renamed or moved, update both this and the `BASE_URL` env var.
 
 (For reference: GitHub has no REST API for creating OAuth Apps — `user/oauth_apps`
 and `applications` both 404. It's web-UI only.)
 
-### 2. Launch and set secrets
+### 2. Deploy via Blueprint — DONE
+
+Render dashboard → **New → Blueprint** → connect `Ashen00001/canvas-remote-mcp`.
+`render.yaml` is auto-detected; Render prompts for the six `sync: false` env vars
+(values live in local `.env`). Auto-deploys on every push to `main` thereafter.
+
+Requires the Render GitHub App installed on this repo (scoped to it only).
+
+### 3. Verify before wiring it up
 
 ```bash
-fly launch --no-deploy --copy-config
-```
-
-All values are already in `.env` — read them from there:
-
-```bash
-fly secrets import < .env
-```
-
-(`fly secrets import` reads KEY=VALUE lines from stdin, so this sets all six at once
-without pasting secrets into your shell history.)
-
-### 3. Deploy
-
-```bash
-fly deploy
-```
-
-### 4. Verify before wiring it up
-
-```bash
-curl -s https://<your-app>.fly.dev/.well-known/oauth-authorization-server
+curl -s https://canvas-remote-mcp.onrender.com/.well-known/oauth-authorization-server
 ```
 
 Should return JSON with `authorization_endpoint` / `token_endpoint` / `registration_endpoint`.
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<your-app>.fly.dev/ -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://canvas-remote-mcp.onrender.com/ -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
 Must print **401**. If it prints 200, stop — the server is unprotected.
 
-### 5. Add to claude.ai
+### 4. Add to claude.ai
 
-Settings → Connectors → **Add custom connector** → URL: `https://<your-app>.fly.dev`
+Settings → Connectors → **Add custom connector** → URL: `https://canvas-remote-mcp.onrender.com`
 
 Claude auto-registers via DCR, bounces you through GitHub, and the tools appear.
 
@@ -104,9 +91,12 @@ python server.py
 
 ## Cost
 
-Fly `shared-cpu-1x` / 512MB with one warm machine ≈ **$2–4/mo**. Set
-`min_machines_running = 0` in `fly.toml` to cut that to near zero, at the cost of
-occasional cold starts (which can time out claude.ai's handshake).
+Render free plan: **$0**, but the instance spins down after ~15 min idle and the next
+request takes ~50s to wake — which can time out claude.ai's connector handshake.
+
+If that gets annoying: Render **Starter** (~$7/mo) removes sleep entirely. Fly
+`shared-cpu-1x`/512MB with a warm machine (~$2–4/mo) is cheaper, but Fly requires
+payment info before it will create an app at all.
 
 ## Rotating the Canvas token
 
