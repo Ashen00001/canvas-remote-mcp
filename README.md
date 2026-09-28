@@ -23,7 +23,36 @@ So: no-auth would mean anyone with the URL controls your Canvas account. Hence O
 
 ---
 
-## Deploy (Render)
+## Deploy (Oracle Cloud Always Free) — recommended
+
+Why move off Render free: it spins down after ~15 min idle **and wipes the disk**.
+The OAuth proxy keeps Claude's client registration + tokens on disk, so every
+spin-down forgets the connector -> "needs reconnect". Oracle's VM stays on and
+`docker-compose.yml` keeps that state on a volume (`oauth-data`).
+
+Stack: `server.py` container + Caddy (auto Let's Encrypt HTTPS). Hostname can be
+`<ip-with-dashes>.sslip.io`, so no domain purchase needed.
+
+1. **Create the VM** — Oracle console -> Compute -> Instances -> Create.
+   Image: Ubuntu 24.04. Shape: `VM.Standard.A1.Flex` at **1 OCPU / 6 GB** (inside the
+   free 2 OCPU / 12 GB), or `VM.Standard.E2.1.Micro` if A1 says out of capacity.
+   Tick "Assign a public IPv4 address". Save the SSH key it generates.
+2. **Open 80/443** — the instance's subnet -> Security List -> Add Ingress Rules:
+   source `0.0.0.0/0`, TCP, destination ports `80,443`.
+3. **Run the installer** — copy `deploy/oracle-setup.sh` to the VM and
+   `sudo bash oracle-setup.sh`. It installs Docker, opens the VM's own iptables,
+   asks for the secrets once (writes `/opt/canvas-mcp/.env`, mode 600), starts
+   everything and refuses to leave it running if unauthenticated calls don't 401.
+4. **GitHub OAuth app** — change the callback URL to `https://<DOMAIN>/auth/callback`
+   (this cuts over from Render; the old URL stops working).
+5. **Claude** — remove the old connector, add a custom connector with `https://<DOMAIN>`.
+
+Updating: edit code, run `deploy/bundle.sh`, re-run the new `oracle-setup.sh` on the VM.
+It keeps `.env`, OAuth state and the cert.
+
+---
+
+## Deploy (Render) — legacy
 
 ### 1. GitHub OAuth App — DONE
 

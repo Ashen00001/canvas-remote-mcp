@@ -1,0 +1,34 @@
+# Oracle Cloud (or any VM) deployment: the MCP server + Caddy for automatic HTTPS.
+# Secrets come from .env next to this file (see .env.example). Never commit it.
+
+services:
+  canvas:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8000"
+      FASTMCP_HOME: /data
+    volumes:
+      - oauth-data:/data          # survives restarts/rebuilds -> no more reconnects
+    expose:
+      - "8000"                    # only reachable through Caddy, not the internet
+    mem_limit: 400m               # fits the 1 GB E2.1.Micro with room to spare
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data          # keeps the Let's Encrypt cert across restarts
+    depends_on:
+      - canvas
+
+volumes:
+  oauth-data:
+  caddy-data:
