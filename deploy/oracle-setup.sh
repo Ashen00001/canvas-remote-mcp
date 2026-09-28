@@ -122,10 +122,38 @@ class GitHubAllowlist(Middleware):
         return await call_next(context)
 
 
+def _oauth_storage():
+    """Where the OAuth proxy keeps Claude's client registration + tokens.
+
+    Default (None) is a folder on local disk. Hosts with ephemeral disks
+    (Render free) wipe it on every spin-down, which is what kept putting the
+    connector into "needs reconnect". Set REDIS_URL (e.g. free Upstash) and
+    the state lives there instead, encrypted with a key derived from the
+    GitHub client secret.
+    """
+    redis_url = os.environ.get("REDIS_URL")
+    if not redis_url:
+        return None
+    from cryptography.fernet import Fernet
+    from fastmcp.server.auth.jwt_issuer import derive_jwt_key
+    from key_value.aio.stores.redis import RedisStore
+    from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+
+    key = derive_jwt_key(
+        low_entropy_material=GITHUB_CLIENT_SECRET, salt="canvas-remote-mcp-storage"
+    )
+    return FernetEncryptionWrapper(
+        key_value=RedisStore(url=redis_url),
+        fernet=Fernet(key=key),
+        raise_on_decryption_error=False,
+    )
+
+
 auth = GitHubProvider(
     client_id=GITHUB_CLIENT_ID,
     client_secret=GITHUB_CLIENT_SECRET,
     base_url=BASE_URL,
+    client_storage=_oauth_storage(),
 )
 
 # Proxy the upstream stdio canvas server. Its Canvas creds come from env here,
@@ -151,6 +179,14 @@ mcp = create_proxy(
 mcp.add_middleware(GitHubAllowlist())
 
 
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_request):
+    """Unauthenticated liveness check for the keep-awake pinger. Returns no data."""
+    from starlette.responses import PlainTextResponse
+
+    return PlainTextResponse("ok")
+
+
 if __name__ == "__main__":
     # NOTE: stateless_http / json_response are http_app() options in FastMCP v3
     # (NOT constructor options) — they're forwarded via run()'s transport kwargs.
@@ -168,6 +204,7 @@ cat > requirements.txt <<'__EOF_requirements_txt__'
 # Pinned: requirements used to say fastmcp>=2.12, so every rebuild silently
 # jumped major versions (it was pulling 4.x). Bump deliberately, not by accident.
 fastmcp>=4.0.10,<5
+py-key-value-aio[redis]>=0.4
 canvas-lms-mcp==0.1.2
 uvicorn>=0.30
 __EOF_requirements_txt__

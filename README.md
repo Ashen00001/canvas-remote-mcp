@@ -23,7 +23,19 @@ So: no-auth would mean anyone with the URL controls your Canvas account. Hence O
 
 ---
 
-## Deploy (Oracle Cloud Always Free) — recommended
+## Fix for "needs reconnect" on Render (no Oracle needed)
+
+The OAuth proxy stores Claude's client registration on local disk; Render free
+wipes it on every spin-down. Two free fixes:
+
+1. **Redis for OAuth state** — create a free DB at <https://console.upstash.com>,
+   copy its `rediss://` URL, add it as `REDIS_URL` in Render → Environment.
+2. **Keep it awake** — at <https://cron-job.org>, add a job hitting
+   `https://canvas-remote-mcp.onrender.com/health` every 10 minutes. `/health` is the
+   only unauthenticated route and returns `ok` with no data. One free service
+   running 24/7 fits inside Render's 750 free hours/month.
+
+## Deploy (Oracle Cloud Always Free) — alternative
 
 Why move off Render free: it spins down after ~15 min idle **and wipes the disk**.
 The OAuth proxy keeps Claude's client registration + tokens on disk, so every

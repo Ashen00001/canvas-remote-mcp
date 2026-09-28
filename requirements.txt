@@ -1,5 +1,6 @@
 # Pinned: requirements used to say fastmcp>=2.12, so every rebuild silently
 # jumped major versions (it was pulling 4.x). Bump deliberately, not by accident.
 fastmcp>=4.0.10,<5
+py-key-value-aio[redis]>=0.4
 canvas-lms-mcp==0.1.2
 uvicorn>=0.30

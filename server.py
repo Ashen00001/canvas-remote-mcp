@@ -75,10 +75,38 @@ class GitHubAllowlist(Middleware):
         return await call_next(context)
 
 
+def _oauth_storage():
+    """Where the OAuth proxy keeps Claude's client registration + tokens.
+
+    Default (None) is a folder on local disk. Hosts with ephemeral disks
+    (Render free) wipe it on every spin-down, which is what kept putting the
+    connector into "needs reconnect". Set REDIS_URL (e.g. free Upstash) and
+    the state lives there instead, encrypted with a key derived from the
+    GitHub client secret.
+    """
+    redis_url = os.environ.get("REDIS_URL")
+    if not redis_url:
+        return None
+    from cryptography.fernet import Fernet
+    from fastmcp.server.auth.jwt_issuer import derive_jwt_key
+    from key_value.aio.stores.redis import RedisStore
+    from key_value.aio.wrappers.encryption import FernetEncryptionWrapper
+
+    key = derive_jwt_key(
+        low_entropy_material=GITHUB_CLIENT_SECRET, salt="canvas-remote-mcp-storage"
+    )
+    return FernetEncryptionWrapper(
+        key_value=RedisStore(url=redis_url),
+        fernet=Fernet(key=key),
+        raise_on_decryption_error=False,
+    )
+
+
 auth = GitHubProvider(
     client_id=GITHUB_CLIENT_ID,
     client_secret=GITHUB_CLIENT_SECRET,
     base_url=BASE_URL,
+    client_storage=_oauth_storage(),
 )
 
 # Proxy the upstream stdio canvas server. Its Canvas creds come from env here,
@@ -102,6 +130,14 @@ mcp = create_proxy(
     auth=auth,
 )
 mcp.add_middleware(GitHubAllowlist())
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(_request):
+    """Unauthenticated liveness check for the keep-awake pinger. Returns no data."""
+    from starlette.responses import PlainTextResponse
+
+    return PlainTextResponse("ok")
 
 
 if __name__ == "__main__":

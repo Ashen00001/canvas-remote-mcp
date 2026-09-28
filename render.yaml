@@ -16,9 +16,8 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeploy: true
 
-    # No healthCheckPath: every HTTP route on this server requires OAuth and
-    # returns 401 unauthenticated, which Render would read as unhealthy.
-    # Render falls back to a TCP port-bind check, which is what we want.
+    # /health is the one unauthenticated route (returns "ok", no data).
+    healthCheckPath: /health
 
     envVars:
       - key: CANVAS_API_TOKEN
@@ -32,4 +31,8 @@ services:
       - key: GITHUB_CLIENT_SECRET
         sync: false
       - key: ALLOWED_GITHUB_USERS
+        sync: false
+      # Free Upstash Redis URL (rediss://...). Keeps OAuth state across
+      # spin-downs so the claude.ai connector stops needing reconnects.
+      - key: REDIS_URL
         sync: false
